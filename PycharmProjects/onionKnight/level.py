@@ -14,12 +14,14 @@ class Level:
         self.create_map()
 
     def create_map(self):
-        for y_index, row in enumerate(WORLD_MAP):
-            for x_index, x in enumerate(row):
+        for y_index, y in enumerate(WORLD_MAP):
+            for x_index, x in enumerate(y):
                 x_screen = x_index * TILESIZE
                 y_screen = y_index * TILESIZE
                 if x == 'x':
                     Tile((x_screen, y_screen),[self.visible_sprites])
+                if x == 'p':
+                    Player((x_screen,y_screen), [self.visible_sprites])
 
     def run(self):
         self.visible_sprites.draw(self.display_surface)
