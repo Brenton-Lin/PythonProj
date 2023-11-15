@@ -89,18 +89,70 @@ match predictorType:
         print(f"FINAL COUNTER CONTENT: {counter}")
 
     case "gshare":
-        print("gshare debug")
-        prediction_bits = int(argv[2])
-        globalHistoryBits = int(argv[3])
-        GHR = 0
-        tableMask = "1"
-        for i in range(1, globalHistoryBits):
-            tableMask += '0'
-        print(tableMask)
-        tableMask += '0'
-        for i in range(1, globalHistoryBits):
-            tableMask += '1'
-        print(tableMask)
+        #print("gshare debug")
+        PC_bits = int(argv[2])  # m
+        globalHistoryBits = int(argv[3])  # n
+        # (m, n) n no longer = 0
+        # initialize GHR to 0, have to do it to n bit length
+        GHR = ['0']*globalHistoryBits
+        # initialize prediction table.
+        predictionTable = {i: 4 for i in range(0, pow(2, PC_bits))}
+
+        for i in range(num_predictions):
+            tempInt = int(predictions_todo[i], 16)
+            # print(tempInt)
+
+            # convert input address to binary string
+            binString = "{:03b}".format(tempInt)
+            #print(binString)
+            #a little confused at the wording, but we shouldn't trim the PC bits, 000 bits would only give us 8 indices
+            # the predictionTable for validation run clearly has 512 indexes that all change.
+            # clearly we xor the n-bit GHR with an m-bit address.
+
+            #left shift by taking m to 2 bits in the binary string
+            tempBin = binString[(PC_bits + 2) * -1:-2]
+            index = int(tempBin, 2) ^ int("".join(GHR), 2)
+
+            # convert to int index
+
+            #compare and update prediction table
+            if predictionTable[index] >= 4:
+                current_prediction = 't'
+            else:
+                current_prediction = 'n'
+            if actual_outcomes[i] == current_prediction:
+                correct_predictions += 1
+            if actual_outcomes[i] == 't' and predictionTable[index] < 7:
+                predictionTable[index] += 1
+            elif actual_outcomes[i] == 'n' and predictionTable[index] > 0:
+                predictionTable[index] -= 1
+
+            #update GHR
+
+            GHR.pop()
+            outcomeBit = '1' if actual_outcomes[i] == 't' else '0'
+            GHR.insert(0, outcomeBit)
+
+            #print(GHR)
+
+        #og = sys.stdout
+        #sys.stdout = open(f'out_{predictorType}_{traceName}', 'w')
+
+        misses = num_predictions - correct_predictions
+        miss_rate = "{:.2f}".format((misses / num_predictions) * 100)
+        print("COMMAND")
+        print(f"./sim gshare {PC_bits} {globalHistoryBits} {traceName}")
+        print("OUTPUT")
+        print(f"number of predictions: {num_predictions}")
+        print(f"number of mispredictions: {misses}")
+        print(f"misprediction rate:  {miss_rate}%")
+        print(f"FINAL GSHARE CONTENTS")
+        for (key, value) in predictionTable.items():
+            print(f"{key} {value}")
+
+        #sys.stdout = og
+
+
 
     case "bimodal":
         # print("bimodal debug")
@@ -112,13 +164,13 @@ match predictorType:
         for i in range(num_predictions):
             # convert hex string to int to binary string?
             tempInt = int(predictions_todo[i], 16)
-            #print(tempInt)
-            maskString = "{0:b}".format(tempInt)
-            #print(maskString)
+            # print(tempInt)
+            binString = "{0:b}".format(tempInt)
+            # print(maskString)
             # m+1>>2, PC_bits+1
-            tempBin = maskString[(PC_bits + 2) * -1:-2]
+            tempBin = binString[(PC_bits + 2) * -1:-2]
             index = int(tempBin, 2)
-            #print(actual_outcomes[i])
+            # print(actual_outcomes[i])
             if predictionTable[index] >= 4:
                 current_prediction = 't'
             else:
@@ -134,7 +186,6 @@ match predictorType:
 
         #og = sys.stdout
         #sys.stdout = open(f'out_{predictorType}_{traceName}', 'w')
-
 
         print("COMMAND")
         print(f"./sim bimodal {PC_bits} {traceName}")
