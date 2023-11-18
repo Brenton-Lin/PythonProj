@@ -210,17 +210,19 @@ match predictorType:
             #convert to a binary string to make it easier to slice and work with.
             binString = "{:0b}".format(tempInt)
 
-            #There will be a different index process for the chooser table, gshare and bimodal
+            #There will be a different indices for the chooser, gshare and bimodal tables
             #but the process is the same, just the bits taken are different.
             chooseSlice = binString[(chooserBits + 2) * -1:-2]
             gSlice = binString[(gPredictionBits + 2) * -1:-2]
             biSlice = binString[(biPredictionBits + 2) * -1:-2]
 
-            chooseIndex = int(chooseSlice, 2)
+            #breakout variables for debugging
             gSliceInt = int(gSlice, 2)
-            #I'm removing leading zeros from the GHR at some point
-            testStr = ''.join(hybridGHR)
+            #testStr = ''.join(hybridGHR)
             ghrInt = int(''.join(hybridGHR), 2)
+
+            chooseIndex = int(chooseSlice, 2)
+            #xor
             gIndex = gSliceInt ^ ghrInt
             biIndex = int(biSlice, 2)
 
@@ -239,8 +241,7 @@ match predictorType:
             #use prediction based on chooser table
             actualOutcome = actual_outcomes[i]
             # compare actual to table predictions, before updating tables.
-            #gCorrect = (actualOutcome == gPrediction)
-            #biCorrect = (actualOutcome == biPrediction)
+
             chosenPrediction = ''
             if chooserTable[chooseIndex] >= 2:
                 chosenPrediction = gPrediction
@@ -267,14 +268,17 @@ match predictorType:
 
             #update chooser table
             if gPrediction != biPrediction:
-
-                if gPrediction == actualOutcome and chooserTable[chooseIndex] < 3:
-                    chooserTable[chooseIndex] += 1
+                if gPrediction == actualOutcome:
+                    if chooserTable[chooseIndex] < 3:
+                        chooserTable[chooseIndex] += 1
                 elif chooserTable[chooseIndex] > 0:
                     chooserTable[chooseIndex] -= 1
 
         misses = num_predictions - correct_predictions
         miss_rate = "{:.2f}".format((misses / num_predictions) * 100)
+
+        # og = sys.stdout
+        # sys.stdout = open(f'out_{predictorType}_{traceName}', 'w')
 
         print("COMMAND")
         print(f"./sim hybrid {chooserBits} {gPredictionBits} {gHRBits} {biPredictionBits} {traceName}")
@@ -292,4 +296,4 @@ match predictorType:
         for (key, value) in biPredictionTable.items():
             print(f"{key} {value}")
 
-
+        # sys.stdout = og
