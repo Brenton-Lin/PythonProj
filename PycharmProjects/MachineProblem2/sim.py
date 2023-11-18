@@ -1,17 +1,9 @@
 from sys import argv
 import sys
 
-# The simulator reads a trace file in the following format:
-# <hex branch PC> t|n - 302d28 n
-
-
-# To simulate a smith n-bit counter predictor: sim smith <B> <tracefile>
-# To simulate a bimodal predictor: sim bimodal <M2> <tracefile>
-# To simulate a gshare predictor: sim gshare <M1> <N> <tracefile>
-# To simulate a hybrid predictor: sim hybrid <K> <M1> <N> <M2>
 
 predictorType = argv[1]
-print(predictorType)
+#print(predictorType)
 traceName = argv[len(argv) - 1]
 file = open(f"traces/{traceName}", 'r')
 
@@ -103,17 +95,16 @@ match predictorType:
             # print(tempInt)
 
             # convert input address to binary string
-            binString = "{:03b}".format(tempInt)
+            binString = "{:0b}".format(tempInt)
             #print(binString)
             #a little confused at the wording, but we shouldn't trim the PC bits, 000 bits would only give us 8 indices
             # the predictionTable for validation run clearly has 512 indexes that all change.
-            # clearly we xor the n-bit GHR with an m-bit address.
+            # so we should xor the n-bit GHR with an m-bit address.
 
             #left shift by taking m to 2 bits in the binary string
             tempBin = binString[(PC_bits + 2) * -1:-2]
-            index = int(tempBin, 2) ^ int("".join(GHR), 2)
-
             # convert to int index
+            index = int(tempBin, 2) ^ int("".join(GHR), 2)
 
             #compare and update prediction table
             if predictionTable[index] >= 4:
@@ -199,4 +190,106 @@ match predictorType:
 
         #sys.stdout = og
     case "hybrid":
-        print("hybrid debug")
+        #print("hybrid debug")
+        #should have planned out classes, whatever...
+        #sim hybrid <K> <M1> <N> <M2>
+        chooserBits = int(argv[2])
+        gPredictionBits = int(argv[3])
+        gHRBits = int(argv[4])
+        biPredictionBits = int(argv[5])
+
+        #initiaze tables
+        hybridGHR = ['0'] * gHRBits
+        chooserTable = {i: 1 for i in range(0, pow(2, chooserBits))}
+        gPredictionTable = {i: 4 for i in range(0, pow(2, gPredictionBits))}
+        biPredictionTable = {i: 4 for i in range(0, pow(2, biPredictionBits))}
+
+        for i in range(num_predictions):
+            #read the address and convert from hex
+            tempInt = int(predictions_todo[i], 16)
+            #convert to a binary string to make it easier to slice and work with.
+            binString = "{:0b}".format(tempInt)
+
+            #There will be a different index process for the chooser table, gshare and bimodal
+            #but the process is the same, just the bits taken are different.
+            chooseSlice = binString[(chooserBits + 2) * -1:-2]
+            gSlice = binString[(gPredictionBits + 2) * -1:-2]
+            biSlice = binString[(biPredictionBits + 2) * -1:-2]
+
+            chooseIndex = int(chooseSlice, 2)
+            gSliceInt = int(gSlice, 2)
+            #I'm removing leading zeros from the GHR at some point
+            testStr = ''.join(hybridGHR)
+            ghrInt = int(''.join(hybridGHR), 2)
+            gIndex = gSliceInt ^ ghrInt
+            biIndex = int(biSlice, 2)
+
+            biPrediction = ''
+            gPrediction = ''
+            #Get predictions from both tables
+            if biPredictionTable[biIndex] >= 4:
+                biPrediction = 't'
+            else:
+                biPrediction = 'n'
+
+            if gPredictionTable[gIndex] >= 4:
+                gPrediction = 't'
+            else:
+                gPrediction = 'n'
+            #use prediction based on chooser table
+            actualOutcome = actual_outcomes[i]
+            # compare actual to table predictions, before updating tables.
+            #gCorrect = (actualOutcome == gPrediction)
+            #biCorrect = (actualOutcome == biPrediction)
+            chosenPrediction = ''
+            if chooserTable[chooseIndex] >= 2:
+                chosenPrediction = gPrediction
+                if actualOutcome == 't' and gPredictionTable[gIndex] < 7:
+                    gPredictionTable[gIndex] += 1
+                elif actualOutcome == 'n' and gPredictionTable[gIndex] > 0:
+                    gPredictionTable[gIndex] -= 1
+
+            else:
+                chosenPrediction = biPrediction
+                if actualOutcome == 't' and biPredictionTable[biIndex] < 7:
+                    biPredictionTable[biIndex] += 1
+                elif actualOutcome == 'n' and biPredictionTable[biIndex] > 0:
+                    biPredictionTable[biIndex] -= 1
+
+            # update GHR
+            hybridGHR.pop()
+            outcomeBit = '1' if actualOutcome == 't' else '0'
+            hybridGHR.insert(0, outcomeBit)
+
+            #update correct predictions
+            if chosenPrediction == actualOutcome:
+                correct_predictions += 1
+
+            #update chooser table
+            if gPrediction != biPrediction:
+
+                if gPrediction == actualOutcome and chooserTable[chooseIndex] < 3:
+                    chooserTable[chooseIndex] += 1
+                elif chooserTable[chooseIndex] > 0:
+                    chooserTable[chooseIndex] -= 1
+
+        misses = num_predictions - correct_predictions
+        miss_rate = "{:.2f}".format((misses / num_predictions) * 100)
+
+        print("COMMAND")
+        print(f"./sim hybrid {chooserBits} {gPredictionBits} {gHRBits} {biPredictionBits} {traceName}")
+        print("OUTPUT")
+        print(f"number of predictions: {num_predictions}")
+        print(f"number of mispredictions: {misses}")
+        print(f"misprediction rate:  {miss_rate}%")
+        print(f"FINAL CHOOSER CONTENTS")
+
+        for (key, value) in chooserTable.items():
+            print(f"{key} {value}")
+
+        print("FINAL BIMODAL CONTENTS")
+
+        for (key, value) in biPredictionTable.items():
+            print(f"{key} {value}")
+
+
